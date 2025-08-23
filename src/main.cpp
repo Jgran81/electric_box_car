@@ -1,5 +1,7 @@
 #include <Arduino.h>
+#include <atomic>
 #include <ResponsiveAnalogRead.h>
+#include "mario.h"  // Include the Mario theme notes
 //#include "super_mario.h"
 //#include "doom.h"
 //#include "ice_ice_baby.h"
@@ -9,7 +11,7 @@
 //#include "star_wars.h"
 
 // Uncomment the line below to enable logging
-#define DEBUG
+//#define DEBUG
 
 // Throttle Limiter
 constexpr int THROTTLE_LIMIT_PIN{26};
@@ -30,7 +32,7 @@ bool isItInRevers{false};  // temp variable for testing if we are reversing
 constexpr int gearSwitchTransition{5}; // how fast will motor slow down in gear change?
 
 enum class gears {forward, revers};
-gears GearState{gears::forward};
+std::atomic<gears> GearState{gears::forward}; 
 gears LastGearState{gears::forward};
 
 // Buzzer
@@ -40,6 +42,7 @@ constexpr int beepInterval{500}; // 500ms on/off like a truck
 bool reverseActive{true}; // Set to true when in reverse
 bool buzzerOn{false};
 unsigned long lastBeepTime{0};
+const size_t MARIO_LEN = sizeof(marioSong) / sizeof(marioSong[0]);
 
 
 // Throttle
@@ -74,20 +77,57 @@ void updateReversingBeep();
 void updateHornBeep();
 void playGearChangeWarning();
 
+// Task 0: Play music on core 0
+void MusicCore(void *pvParameters);
+// Task 1: Normal tasks on core 1
+void NormalTasks(void *pvParameters);
+
 void setup() {
-	// Motor controller
+	Serial.begin(9600);
+
+  xTaskCreatePinnedToCore(MusicCore, "MusicCore", 4096, NULL, 1, NULL, 0); // Core 0
+  xTaskCreatePinnedToCore(NormalTasks, "NormalTasks", 4096, NULL, 1, NULL, 1); // Core 1
+}
+
+void loop() {
+  // Nothing here, all tasks are handled in their respective functions
+}
+/// --<<<END OF LOOP>>--
+
+// Core 0 task to play music
+void MusicCore(void *pvParameters) {
+  // This task runs on core 0
+  ledcAttachPin(BUZZER_PIN, BUZZER_PWM_CHANNEL);
+  pinMode(HORN_PIN, INPUT_PULLUP); // HORN: Enable internal pull-up resistor
+  for(;;) {
+    // Read horn switch, LOW == no sound, HIGH == Sound
+    hornState = digitalRead(HORN_PIN) == LOW;
+
+    if (GearState.load() == gears::revers) {
+      updateReversingBeep();
+    } else if (hornState) {
+      playMusic();
+    } else {
+      ledcWrite(BUZZER_PWM_CHANNEL, 0); 
+    }
+    #ifdef DEBUG
+      Serial.print(" | HORN Active: ");
+      Serial.print(hornState ? "YES" : "NO");
+    #endif
+    // Optionally add a small delay to yield to other tasks
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
+}
+
+// Core 1 task for normal operations
+void NormalTasks(void *pvParameters) {
+  // Motor controller
   pinMode(L_EN, OUTPUT);
 	pinMode(R_EN, OUTPUT);
 	pinMode(L_PWM, OUTPUT);
 	pinMode(R_PWM, OUTPUT);
 
 	pinMode(GAS_PEDAL, INPUT);
-
-  pinMode(GEAR_SWITCH_PIN, INPUT_PULLUP); // GEAR: Enable internal pull-up resistor
-  pinMode(HORN_PIN, INPUT_PULLUP); // HORN: Enable internal pull-up resistor
-
-  //pinMode(BUZZER_PIN, OUTPUT);
-  ledcAttachPin(BUZZER_PIN, BUZZER_PWM_CHANNEL);
 
   pinMode(THROTTLE_LIMIT_PIN, INPUT);
   
@@ -96,43 +136,34 @@ void setup() {
 
   // Setting the resolution for input pins
   ThrottleAnalogRead.setAnalogResolution(resolution);
-
-	Serial.begin(9600);
-}
-
-void loop() {
-  // Throttle limit input potentiometer, from 10 to 100%
-  throttleLimit = map(analogRead(THROTTLE_LIMIT_PIN), thottleMinInput, throttleMaxInput, throttleMinOutPut, throttleMaxOutPut);
   
-  // Read gear switch, LOW == Revers, HIGH == Forward
-  //GearIsInReverse = digitalRead(GEAR_SWITCH_PIN) == LOW;
-  //GearIsInDrive = !GearIsInReverse;   // ==TRUE if going forward else its FALSE
-  //digitalRead(GEAR_SWITCH_PIN) == LOW ? gearstate::Reverse : gearstate::Forward;
+  for(;;) {
+    // This task runs on core 1
 
-  GearState = digitalRead(GEAR_SWITCH_PIN) == HIGH ? gears::forward : gears::revers;
+    // Throttle limit input potentiometer, from 10 to 100%
+    throttleLimit = map(analogRead(THROTTLE_LIMIT_PIN), thottleMinInput, throttleMaxInput, throttleMinOutPut, throttleMaxOutPut);
 
-  // Read current gear state
-  //bool currentGearState = digitalRead(GEAR_SWITCH_PIN) == LOW;  // true = reverse
+    // This needs to be atomic to avoid race conditions with MusicCore
+    GearState.store(digitalRead(GEAR_SWITCH_PIN) == HIGH ? gears::forward : gears::revers);
 
-  //if (currentGearState != lastGearState) {
-  if (GearState != LastGearState) {
+    if (GearState.load() != LastGearState) {
     // Gear changed! Slow down before switching direction
-    while (currentPWM > 15) {
-      currentPWM -= 10;
-      if (currentPWM < 0) currentPWM = 0;
+      while (currentPWM > 15) {
+        currentPWM -= 10;
+        if (currentPWM < 0) currentPWM = 0;
 
-      if (GearState == gears::revers) { 
-        // Switching into reverse
-        analogWrite(L_PWM, currentPWM);
-        analogWrite(R_PWM, 0);
-      } else {
-        // Switching into drive
-        analogWrite(R_PWM, currentPWM);
-        analogWrite(L_PWM, 0);
+        if (GearState == gears::revers) { 
+          // Switching into reverse
+          analogWrite(L_PWM, currentPWM);
+          analogWrite(R_PWM, 0);
+        } else {
+          // Switching into drive
+          analogWrite(R_PWM, currentPWM);
+          analogWrite(L_PWM, 0);
+        }
+
+        vTaskDelay(100);
       }
-
-      delay(100);
-    }
 
     // Full stop
     analogWrite(R_PWM, 0);
@@ -140,11 +171,11 @@ void loop() {
     currentPWM = 0;
 
     // Save gear state for next loop
-    LastGearState = GearState;
+    LastGearState = GearState.load();
   }
 
   // Read and map servo values
-  if (GearState == gears::revers) {
+  if (GearState.load() == gears::revers) {
     targetPWM = readAnalogThrottleValue(reverseThrottleMax);
   } else {
     targetPWM = readAnalogThrottleValue(throttleLimit);
@@ -158,10 +189,7 @@ void loop() {
     currentPWM = 0;
   }
 
-  // Read horn switch, LOW == no sound, HIGH == Sound
-  hornState = digitalRead(HORN_PIN) == LOW;
-
-  if (GearState == gears::revers) { 
+  if (GearState.load() == gears::revers) { 
     analogWrite(R_PWM, currentPWM);  
     analogWrite(L_PWM, 0);  // Only driver forward
     isItInRevers = true;
@@ -171,15 +199,6 @@ void loop() {
     isItInRevers = false;
   }
 
-  if (GearState == gears::revers) { 
-    updateReversingBeep();
-  } else if (hornState) {
-    updateHornBeep();
-  } else {
-    ledcWrite(BUZZER_PWM_CHANNEL, 0); 
-  }
-
-
   #ifdef DEBUG
     Serial.print(" | PwmValue: ");
     Serial.print(currentPWM);
@@ -188,20 +207,16 @@ void loop() {
     Serial.print(analogRead(GAS_PEDAL));
 
     Serial.print(" | Reverse Active: ");
-    Serial.print(GearState == gears::revers ? "YES" : "NO");
-
-    Serial.print(" | HORN Active: ");
-    Serial.print(hornState ? "YES" : "NO");
-
-    //Serial.print(" | Revers?: ");
-    //Serial.print(isItInRevers ? "YES" : "NO");
+    Serial.print(GearState.load() == gears::revers ? "YES" : "NO");
 
     Serial.print("      \r");
   #endif
 
-  //delay(softStartDelay);  // Vänta lite mellan varje steg för mjuk effektökning
+    // Optionally add a small delay to yield to other tasks
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
+
 }
-/// --<<<END OF LOOP>>--
 
 
 /**
@@ -242,10 +257,8 @@ void updateReversingBeep() {
 
     if (buzzerOn) {
       ledcWrite(BUZZER_PWM_CHANNEL, 0);  // Ingen ton
-      //noTone(BUZZER_PIN);  // Turn OFF
     } else {
       ledcWriteNote(BUZZER_PWM_CHANNEL, NOTE_E, 5);
-      //tone(BUZZER_PIN, NOTE_E5);  // Revers Tone
     }
 
     buzzerOn = !buzzerOn;  // Toggle state
@@ -278,3 +291,22 @@ void updateHornBeep() {
     noTone(BUZZER_PIN);
   }
 } */
+
+void playMusic() {
+  for (size_t i = 0; i < MARIO_LEN; ++i) {
+    const Note &n = marioSong[i];
+      if (GearState.load() == gears::revers) {
+        break;
+      }
+      if (n.note == REST) {
+        // silence for duration
+        ledcWrite(BUZZER_PWM_CHANNEL, 0);
+      } else {
+        ledcWriteNote(BUZZER_PWM_CHANNEL, static_cast<note_t>(n.note), n.octave);
+      }
+      const uint32_t dur_ms = 1100 / n.duration;
+      vTaskDelay(dur_ms / portTICK_PERIOD_MS);
+      // ensure silence between notes without adding extra time
+      ledcWrite(BUZZER_PWM_CHANNEL, 0);
+  }
+}
