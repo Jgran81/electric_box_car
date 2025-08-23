@@ -1,0 +1,46 @@
+#pragma once
+
+#include "pitches.h"
+
+
+int melody[] = {
+    NOTE_B4, REST,
+    NOTE_FS4, NOTE_FS4, NOTE_B4, NOTE_FS4, NOTE_E4, REST, NOTE_B3,
+  
+    NOTE_D4, NOTE_D4, NOTE_D4, NOTE_D4, NOTE_B3, NOTE_B3, NOTE_D4, NOTE_D4, NOTE_D4, NOTE_D4, NOTE_B3, NOTE_B3,
+    NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_AS3, NOTE_AS3, NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_AS3, NOTE_B3,
+    NOTE_D4, NOTE_D4, NOTE_D4, NOTE_D4, NOTE_B3, NOTE_B3, NOTE_D4, NOTE_D4, NOTE_D4, NOTE_D4, NOTE_B3, NOTE_B3,
+    NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_AS3, NOTE_AS3, NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_CS4, NOTE_AS3,
+  
+    NOTE_B4, NOTE_A4, NOTE_G4, NOTE_D4, NOTE_FS4, NOTE_E4, NOTE_B4,
+    NOTE_B4, NOTE_A4, NOTE_G4, NOTE_D4, NOTE_FS4, NOTE_AS4,
+  
+    REST, NOTE_E4, NOTE_FS4, NOTE_E4, NOTE_D4, NOTE_B3,
+    NOTE_D4, NOTE_E4, NOTE_D4, NOTE_E4, NOTE_D4, NOTE_E4, NOTE_D4, NOTE_E4, NOTE_D4, NOTE_E4, NOTE_B4,
+    REST, NOTE_E4, NOTE_FS4, NOTE_E4, NOTE_D4, NOTE_B3,
+    NOTE_D4, NOTE_E4, NOTE_D4, NOTE_E4, NOTE_D4, NOTE_E4, NOTE_B4, REST, NOTE_B3, NOTE_B3, NOTE_B3,
+    NOTE_D4, NOTE_CS4, NOTE_B3, NOTE_FS3, NOTE_E3, NOTE_FS3, NOTE_FS4, NOTE_B4, NOTE_FS4, NOTE_E4,
+    
+    REST
+  };
+  
+  int durations[] = {
+    4, 2,
+    4, 8, 4, 8, 4, 2, 8,
+  
+    4, 4, 8, 8, 2, 8, 4, 4, 8, 8, 2, 8,
+    4, 4, 8, 8, 2, 8, 4, 4, 8, 8, 2, 8,
+    4, 4, 8, 8, 2, 8, 4, 4, 8, 8, 2, 8,
+    4, 4, 8, 8, 2, 8, 4, 4, 8, 8, 2,
+  
+    2, 2, 2, 4, 1, 1, 8,
+    2, 2, 2, 4, 1, 1,
+  
+    2, 2, 8, 8, 8, 2,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 2,
+    2, 2, 8, 8, 8, 2,
+    8, 8, 8, 8, 8, 8, 2, 2, 8, 8, 8,
+    2, 2, 2, 8, 4, 4, 8, 4, 8, 2,
+  
+    1
+  };
