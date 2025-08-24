@@ -76,6 +76,7 @@ int readAnalogThrottleValue(int throttleLevel);
 void updateReversingBeep();
 void updateHornBeep();
 void playGearChangeWarning();
+void playMusic();
 
 // Task 0: Play music on core 0
 void MusicCore(void *pvParameters);
@@ -162,7 +163,7 @@ void NormalTasks(void *pvParameters) {
           analogWrite(L_PWM, 0);
         }
 
-        vTaskDelay(100);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
       }
 
     // Full stop
