@@ -11,7 +11,14 @@
 //#include "star_wars.h"
 
 // Uncomment the line below to enable logging
-//#define DEBUG
+//#define DEBUG_MUSIC
+//#define DEBUG_NORMAL
+
+// FreeRTOS settings
+// 1 tick = 1 ms
+#define CONFIG_FREERTOS_HZ 1000
+#define configTICK_RATE_HZ ( CONFIG_FREERTOS_HZ )
+#define portTICK_PERIOD_MS ( ( TickType_t ) 1000 / configTICK_RATE_HZ )
 
 // Throttle Limiter
 constexpr int THROTTLE_LIMIT_PIN{26};
@@ -24,7 +31,6 @@ int throttleLimit{10};
 
 // Horn
 constexpr int HORN_PIN{16};
-bool hornState{false};
 
 // Gear switch
 constexpr int GEAR_SWITCH_PIN{15}; // Gear selector switch
@@ -68,6 +74,9 @@ constexpr int R_PWM{19};
 constexpr float snapMultiplier{0.01f};
 constexpr int resolution{4096};
 
+// Timers
+constexpr int timer100ms{100}; // ms
+
 // Constructs
 ResponsiveAnalogRead ThrottleAnalogRead(GAS_PEDAL, true, snapMultiplier);
 
@@ -100,23 +109,49 @@ void MusicCore(void *pvParameters) {
   // This task runs on core 0
   ledcAttachPin(BUZZER_PIN, BUZZER_PWM_CHANNEL);
   pinMode(HORN_PIN, INPUT_PULLUP); // HORN: Enable internal pull-up resistor
+
+  const int debounceDelay = 50; // ms
+  bool lastStableState = HIGH;  // last stable state of button
+  bool lastReading = HIGH;      // last sampled state
+  unsigned long lastDebounceTime = 0;
+
   for(;;) {
+  
     // Read horn switch, LOW == no sound, HIGH == Sound
-    hornState = digitalRead(HORN_PIN) == LOW;
+    //hornState = digitalRead(HORN_PIN) == LOW;
+    bool reading = digitalRead(HORN_PIN);  // raw button read
+
+    // --- CHANGED: debounce logic ---
+    if (reading  != lastReading) {
+      lastDebounceTime = millis(); // reset debounce timer
+    }
+    lastReading = reading ;
+
+    if ((millis() - lastDebounceTime) > debounceDelay) {
+      // stable for long enough → accept state
+      if (reading  != lastStableState) {
+        lastStableState = reading ;
+
+        // button pressed (LOW with pull-up)
+        if (lastStableState == LOW) {
+          playMusic();  // play full song once
+        }
+      }
+    }
 
     if (GearState.load() == gears::revers) {
       updateReversingBeep();
-    } else if (hornState) {
-      playMusic();
     } else {
       ledcWrite(BUZZER_PWM_CHANNEL, 0); 
     }
-    #ifdef DEBUG
+
+    #ifdef DEBUG_MUSIC
       Serial.print(" | HORN Active: ");
-      Serial.print(hornState ? "YES" : "NO");
+      Serial.print(lastStableState == LOW ?  "YES" : "NO");
+      Serial.print("      \r");
     #endif
     // Optionally add a small delay to yield to other tasks
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 }
 
@@ -163,7 +198,7 @@ void NormalTasks(void *pvParameters) {
           analogWrite(L_PWM, 0);
         }
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(timer100ms / portTICK_PERIOD_MS);
       }
 
     // Full stop
@@ -200,7 +235,7 @@ void NormalTasks(void *pvParameters) {
     isItInRevers = false;
   }
 
-  #ifdef DEBUG
+  #ifdef DEBUG_NORMAL
     Serial.print(" | PwmValue: ");
     Serial.print(currentPWM);
 
