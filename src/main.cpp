@@ -75,7 +75,8 @@ constexpr float snapMultiplier{0.01f};
 constexpr int resolution{4096};
 
 // Timers
-constexpr int timer100ms{100}; // ms
+constexpr int timer100ms{100}; // a timer for 100ms
+constexpr int timer50ms{50};   // a timer for 50ms
 
 // Constructs
 ResponsiveAnalogRead ThrottleAnalogRead(GAS_PEDAL, true, snapMultiplier);
@@ -151,7 +152,7 @@ void MusicCore(void *pvParameters) {
       Serial.print("      \r");
     #endif
     // Optionally add a small delay to yield to other tasks
-    vTaskDelay(50 / portTICK_PERIOD_MS);
+    vTaskDelay(timer50ms / portTICK_PERIOD_MS);
   }
 }
 
@@ -249,11 +250,9 @@ void NormalTasks(void *pvParameters) {
   #endif
 
     // Optionally add a small delay to yield to other tasks
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(timer100ms / portTICK_PERIOD_MS);
   }
-
 }
-
 
 /**
  * Smoothly adjusts currentPWM toward targetPWM.
@@ -276,7 +275,6 @@ void softAccelerateOrDecelerate(int& currentPWM, int& targetPWM) {
   }
 }
 
-
 int readAnalogThrottleValue(int throttleLevel) {
 
   ThrottleAnalogRead.update();
@@ -296,17 +294,13 @@ void updateReversingBeep() {
     } else {
       ledcWriteNote(BUZZER_PWM_CHANNEL, NOTE_E, 5);
     }
-
     buzzerOn = !buzzerOn;  // Toggle state
   }
 }
 
-
 void updateHornBeep() {
-
   ledcWriteNote(BUZZER_PWM_CHANNEL, NOTE_B, 4);
 }
-
 
 // Play music from included files, switch in header.
 /* void playGearChangeWarning() {
