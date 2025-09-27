@@ -53,7 +53,8 @@ const size_t MARIO_LEN = sizeof(marioSong) / sizeof(marioSong[0]);
 
 // Throttle
 constexpr int GAS_PEDAL{34};
-constexpr int softStartStep{5};  // Hur snabbt PWM ökar, öka för snabbare förändring
+constexpr int softStartStep{10};  // Hur snabbt PWM ökar, öka för snabbare förändring
+constexpr int softReduceStep{15}; // Hur snabbt PWM minskar, öka för snabbare förändring
 constexpr int softStartDelay{10}; // Fördröjning mellan varje steg i ms
 int currentPWM{0};  // Nuvarande PWM-värde
 int targetPWM{0};
@@ -268,7 +269,7 @@ void softAccelerateOrDecelerate(int& currentPWM, int& targetPWM) {
       currentPWM = targetPWM;  // Se till att vi inte går över
     }
   } else if (currentPWM > targetPWM) {
-    currentPWM -= softStartStep;
+    currentPWM -= softReduceStep;
     if (currentPWM < targetPWM) {
       currentPWM = targetPWM;  // Se till att vi inte går under
     }
